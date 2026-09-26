@@ -15,11 +15,16 @@ public final class PaymentParser {
     public static Payment parse(String pkg, String title, String text) {
         if (text == null || text.length() > 8192) return null;
         int type;
-        if ("com.eg.android.AlipayGphone".equals(pkg)) type = 2;
+        if ("com.eg.android.AlipayGphone".equals(pkg)) {
+            if (!text.contains("通过扫码向你付款") && !text.contains("成功收款")
+                    && !text.contains("收款到账")) return null;
+            type = 2;
+        }
         else if ("com.tencent.mm".equals(pkg) && ("微信支付".equals(title)
                 || "微信收款助手".equals(title) || "微信收款商业版".equals(title))) type = 1;
         else return null;
         if (text.contains("退款") || text.contains("退还") || text.contains("失败")
+                || text.contains("提现") || text.contains("转出") || text.contains("支出")
                 || text.contains("待收款") || text.contains("汇总") || text.contains("合计")) return null;
         Matcher matcher = AMOUNT.matcher(text);
         if (!matcher.find()) return null;

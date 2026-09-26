@@ -19,6 +19,10 @@ public class PaymentParserTest {
         String[] texts = {"付款成功20元", "退款到账20元", "成功收款0元", "成功收款-10元", "成功收款1.234元", "成功收款1.2.3元", "成功收款10元，成功收款20元", "成功收款10元，今日合计30元", "订单号12345", "待收款20元", "成功收款9999999999元"};
         for (String text : texts) assertNull(text, PaymentParser.parse("com.tencent.mm", "微信支付", text));
     }
+    @Test public void rejectsNonPaymentAccountCredits() {
+        assertNull(PaymentParser.parse("com.eg.android.AlipayGphone", "支付宝", "红包到账10元"));
+        assertNull(PaymentParser.parse("com.tencent.mm", "微信支付", "提现到账100元"));
+    }
     @Test public void rejectsWrongSenderAndNullContent() {
         assertNull(PaymentParser.parse("attacker.app", "微信支付", "收款1元"));
         assertNull(PaymentParser.parse("com.tencent.mm", "普通联系人", "收款1元"));
