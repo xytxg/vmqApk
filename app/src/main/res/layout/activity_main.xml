@@ -1,62 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    tools:context="com.vone.vmq.MainActivity"
-
-    >
-
-    <include layout="@layout/toolbar_main" />
-
-    <TextView
-        android:paddingTop="20dp"
-        android:paddingBottom="10dp"
-
-        android:id="@+id/txt_host"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-
-        android:baselineAligned="false"
-        android:text=" 通知地址：请扫码配置" />
-
-    <TextView
-        android:paddingBottom="20dp"
-        android:id="@+id/txt_key"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:text=" 通讯密钥：请扫码配置" />
-
-
-    <Button
-        android:id="@+id/btn_qrcode"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:onClick="startQrCode"
-        android:text="扫码配置" />
-    <Button
-        android:id="@+id/btn_input"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:onClick="doInput"
-        android:text="手动配置" />
-    <Button
-        android:id="@+id/btn_start"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:onClick="doStart"
-        android:text="检测心跳" />
-    <Button
-        android:id="@+id/btn_checkpush"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:onClick="checkPush"
-        android:text="检测监听" />
-
-</LinearLayout>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent">
+<ScrollView android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="24dp">
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/heading" android:textSize="34sp" android:textStyle="bold"/>
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/subtitle" android:textSize="14sp" android:layout_marginTop="8dp"/>
+<TextView style="@style/SectionTitle" android:text="@string/service_title"/>
+<TextView android:id="@+id/txt_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="15sp" android:textIsSelectable="true" android:lineSpacingExtra="4dp"/>
+<Button android:id="@+id/btn_access" style="@style/ActionButton" android:text="@string/access"/>
+<TextView style="@style/SectionTitle" android:text="@string/config_title"/>
+<TextView android:id="@+id/txt_host" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="15sp" android:textIsSelectable="true" android:lineSpacingExtra="4dp"/>
+<Button android:id="@+id/btn_qrcode" style="@style/ActionButton" android:text="@string/scan"/>
+<Button android:id="@+id/btn_gallery" style="@style/ActionButton" android:text="@string/gallery"/>
+<Button android:id="@+id/btn_input" style="@style/ActionButton" android:text="@string/input"/>
+<TextView style="@style/SectionTitle" android:text="@string/actions_title"/>
+<Button android:id="@+id/btn_start" style="@style/ActionButton" android:text="@string/heart"/>
+<Button android:id="@+id/btn_checkpush" style="@style/ActionButton" android:text="@string/test"/>
+<Button android:id="@+id/btn_battery" style="@style/ActionButton" android:text="@string/battery"/>
+<TextView style="@style/SectionTitle" android:text="@string/history_title"/>
+<TextView android:id="@+id/txt_history" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="15sp" android:textIsSelectable="true" android:lineSpacingExtra="4dp"/>
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="@string/guide" android:textSize="14sp" android:lineSpacingExtra="4dp"/>
+<Button android:id="@+id/btn_clear" style="@style/ActionButton" android:text="@string/clear"/>
+</LinearLayout></ScrollView></FrameLayout>

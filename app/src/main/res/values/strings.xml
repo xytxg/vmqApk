@@ -1,3 +1,18 @@
 <resources>
     <string name="app_name">V免签监控端</string>
+    <string name="heading">V免签</string>
+    <string name="subtitle">收款通知监控 · 2.0</string>
+    <string name="service_title">监听状态</string>
+    <string name="config_title">服务器配置</string>
+    <string name="actions_title">连接与检测</string>
+    <string name="history_title">最近运行状态</string>
+    <string name="guide">使用步骤：配置服务器 → 开启通知使用权 → 检测心跳和监听。\n\n请允许微信、支付宝发送收款通知，并在系统设置中允许本应用后台运行。系统休眠和厂商省电策略可能延迟心跳。</string>
+    <string name="scan">扫码配置</string>
+    <string name="gallery">从图片导入</string>
+    <string name="input">手动配置</string>
+    <string name="heart">检测服务器心跳</string>
+    <string name="test">发送监听测试</string>
+    <string name="access">开启通知使用权</string>
+    <string name="battery">后台运行设置</string>
+    <string name="clear">清除服务器配置</string>
 </resources>

@@ -1,410 +1,213 @@
 package com.vone.vmq;
 
 import android.Manifest;
-import android.app.AlertDialog;
-import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
-import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
-import android.media.RingtoneManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Looper;
 import android.provider.Settings;
-import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.NotificationManagerCompat;
-import android.support.v7.app.AppCompatActivity;
-import android.text.TextUtils;
-import android.util.Log;
+import android.service.notification.NotificationListenerService;
+import android.text.InputType;
 import android.view.View;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import com.google.zxing.BinaryBitmap;
+import com.google.zxing.RGBLuminanceSource;
+import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.qrcode.QRCodeReader;
+import com.journeyapps.barcodescanner.ScanContract;
+import com.journeyapps.barcodescanner.ScanOptions;
 import com.vone.qrcode.R;
-import com.vone.vmq.util.Constant;
-import com.google.zxing.activity.CaptureActivity;
-
-import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Date;
-import java.util.Set;
-
+import com.vone.vmq.core.ApiClient;
+import com.vone.vmq.core.Protocol;
+import com.vone.vmq.core.ServerConfig;
+import com.vone.vmq.data.ConfigStore;
+import com.vone.vmq.data.MonitorState;
+import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 
-public class MainActivity extends AppCompatActivity{
-
-
-    private TextView txthost;
-    private TextView txtkey;
-
-    private boolean isOk = false;
-    private static String TAG = "MainActivity";
-
-    private static String host;
-    private static String key;
-
-    int id = 0;
-
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-
-
-        txthost = (TextView) findViewById(R.id.txt_host);
-        txtkey = (TextView) findViewById(R.id.txt_key);
-
-
-
-        //检测通知使用权是否启用
-        if (!isNotificationListenersEnabled()) {
-            //跳转到通知使用权页面
-            gotoNotificationAccessSetting();
-        }
-        //重启监听服务
-        toggleNotificationListenerService(this);
-
-
-
-        //读入保存的配置数据并显示
-        SharedPreferences read = getSharedPreferences("vone", MODE_PRIVATE);
-        host = read.getString("host", "");
-        key = read.getString("key", "");
-
-        if (host!=null && key!=null && host!="" && key!=""){
-            txthost.setText(" 通知地址："+host);
-            txtkey.setText(" 通讯密钥："+key);
-            isOk = true;
-        }
-
-
-        Toast.makeText(MainActivity.this, "v免签开源免费免签系统 v1.8.1", Toast.LENGTH_SHORT).show();
-
-
-    }
-
-
-
-    //扫码配置
-    public void startQrCode(View v) {
-        // 申请相机权限
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            // 申请权限
-            ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.CAMERA}, Constant.REQ_PERM_CAMERA);
-            return;
-        }
-        // 申请文件读写权限（部分朋友遇到相册选图需要读写权限的情况，这里一并写一下）
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            // 申请权限
-            ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, Constant.REQ_PERM_EXTERNAL_STORAGE);
-            return;
-        }
-        // 二维码扫码
-        Intent intent = new Intent(MainActivity.this, CaptureActivity.class);
-        startActivityForResult(intent, Constant.REQ_QR_CODE);
-    }
-    //手动配置
-    public void doInput(View v){
-        final EditText inputServer = new EditText(this);
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("请输入配置数据").setView(inputServer)
-                .setNegativeButton("取消", null);
-        builder.setPositiveButton("确认", new DialogInterface.OnClickListener() {
-
-            public void onClick(DialogInterface dialog, int which) {
-                String scanResult = inputServer.getText().toString();
-
-                String[] tmp = scanResult.split("/");
-                if (tmp.length!=2){
-                    Toast.makeText(MainActivity.this, "数据错误，请您输入网站上显示的配置数据!", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                String t = String.valueOf(new Date().getTime());
-                String sign = md5(t+tmp[1]);
-
-
-                OkHttpClient okHttpClient = new OkHttpClient();
-                Request request = new Request.Builder().url("http://"+tmp[0]+"/appHeart?t="+t+"&sign="+sign).method("GET",null).build();
-                Call call = okHttpClient.newCall(request);
-                call.enqueue(new Callback() {
-                    @Override
-                    public void onFailure(Call call, IOException e) {
-
-                    }
-                    @Override
-                    public void onResponse(Call call, Response response) throws IOException {
-                        Log.d(TAG, "onResponse: "+response.body().string());
-                        isOk = true;
-
-                    }
-                });
-                if (tmp[0].indexOf("localhost")>=0){
-                    Toast.makeText(MainActivity.this, "配置信息错误，本机调试请访问 本机局域网IP:8080(如192.168.1.101:8080) 获取配置信息进行配置!", Toast.LENGTH_LONG).show();
-
-                    return;
-                }
-                //将扫描出的信息显示出来
-                txthost.setText(" 通知地址："+tmp[0]);
-                txtkey.setText(" 通讯密钥："+tmp[1]);
-                host = tmp[0];
-                key = tmp[1];
-
-                SharedPreferences.Editor editor = getSharedPreferences("vone", MODE_PRIVATE).edit();
-                editor.putString("host", host);
-                editor.putString("key", key);
-                editor.commit();
-
-            }
-        });
-        builder.show();
-
-    }
-    //检测心跳
-    public void doStart(View view) {
-        if (isOk==false){
-            Toast.makeText(MainActivity.this, "请您先配置!", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-
-        String t = String.valueOf(new Date().getTime());
-        String sign = md5(t+key);
-
-        OkHttpClient okHttpClient = new OkHttpClient();
-        Request request = new Request.Builder().url("http://"+host+"/appHeart?t="+t+"&sign="+sign).method("GET",null).build();
-        Call call = okHttpClient.newCall(request);
-        call.enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                Looper.prepare();
-                Toast.makeText(MainActivity.this, "心跳状态错误，请检查配置是否正确!", Toast.LENGTH_SHORT).show();
-                Looper.loop();
-            }
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                Looper.prepare();
-                Toast.makeText(MainActivity.this, "心跳返回："+response.body().string(), Toast.LENGTH_LONG).show();
-                Looper.loop();
-            }
-        });
-    }
-    //检测监听
-    public void checkPush(View v){
-
-        Notification mNotification;
-        NotificationManager mNotificationManager;
-        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel("1",
-                    "Channel1", NotificationManager.IMPORTANCE_DEFAULT);
-            channel.enableLights(true);
-            channel.setLightColor(Color.GREEN);
-            channel.setShowBadge(true);
-            mNotificationManager.createNotificationChannel(channel);
-
-            Notification.Builder builder = new Notification.Builder(this,"1");
-
-            mNotification = builder
-                    .setSmallIcon(R.mipmap.ic_launcher)
-                    .setTicker("这是一条测试推送信息，如果程序正常，则会提示监听权限正常")
-                    .setContentTitle("V免签测试推送")
-                    .setContentText("这是一条测试推送信息，如果程序正常，则会提示监听权限正常")
-                    .build();
-        }else{
-            mNotification = new Notification.Builder(MainActivity.this)
-                    .setSmallIcon(R.mipmap.ic_launcher)
-                    .setTicker("这是一条测试推送信息，如果程序正常，则会提示监听权限正常")
-                    .setContentTitle("V免签测试推送")
-                    .setContentText("这是一条测试推送信息，如果程序正常，则会提示监听权限正常")
-                    .build();
-        }
-
-        //Toast.makeText(MainActivity.this, "已推送信息，如果权限，那么将会有下一条提示！", Toast.LENGTH_SHORT).show();
-
-
-
-        mNotificationManager.notify(id++, mNotification);
-    }
-
-
-
-
-
-
-
-    //各种权限的判断
-    private void toggleNotificationListenerService(Context context) {
-        PackageManager pm = context.getPackageManager();
-        pm.setComponentEnabledSetting(new ComponentName(context, NeNotificationService2.class),
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
-
-        pm.setComponentEnabledSetting(new ComponentName(context, NeNotificationService2.class),
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
-
-        Toast.makeText(MainActivity.this, "监听服务启动中...", Toast.LENGTH_SHORT).show();
-    }
-    public boolean isNotificationListenersEnabled() {
-        String pkgName = getPackageName();
-        final String flat = Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
-        if (!TextUtils.isEmpty(flat)) {
-            final String[] names = flat.split(":");
-            for (int i = 0; i < names.length; i++) {
-                final ComponentName cn = ComponentName.unflattenFromString(names[i]);
-                if (cn != null) {
-                    if (TextUtils.equals(pkgName, cn.getPackageName())) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-    protected boolean gotoNotificationAccessSetting() {
-        try {
-            Intent intent = new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-            return true;
-
-        } catch (ActivityNotFoundException e) {//普通情况下找不到的时候需要再特殊处理找一次
-            try {
-                Intent intent = new Intent();
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                ComponentName cn = new ComponentName("com.android.settings", "com.android.settings.Settings$NotificationAccessSettingsActivity");
-                intent.setComponent(cn);
-                intent.putExtra(":settings:show_fragment", "NotificationAccessSettings");
-                startActivity(intent);
-                return true;
-            } catch (Exception e1) {
-                e1.printStackTrace();
-            }
-            Toast.makeText(this, "对不起，您的手机暂不支持", Toast.LENGTH_SHORT).show();
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-
-
-    public static String md5(String string) {
-        if (TextUtils.isEmpty(string)) {
-            return "";
-        }
-        MessageDigest md5 = null;
-        try {
-            md5 = MessageDigest.getInstance("MD5");
-            byte[] bytes = md5.digest(string.getBytes());
-            String result = "";
-            for (byte b : bytes) {
-                String temp = Integer.toHexString(b & 0xff);
-                if (temp.length() == 1) {
-                    temp = "0" + temp;
-                }
-                result += temp;
-            }
-            return result;
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-        return "";
-    }
-
-
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        //扫描结果回调
-        if (requestCode == Constant.REQ_QR_CODE && resultCode == RESULT_OK) {
-            Bundle bundle = data.getExtras();
-            String scanResult = bundle.getString(Constant.INTENT_EXTRA_KEY_QR_SCAN);
-
-            String[] tmp = scanResult.split("/");
-            if (tmp.length!=2){
-                Toast.makeText(MainActivity.this, "二维码错误，请您扫描网站上显示的二维码!", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            String t = String.valueOf(new Date().getTime());
-            String sign = md5(t+tmp[1]);
-
-
-            OkHttpClient okHttpClient = new OkHttpClient();
-            Request request = new Request.Builder().url("http://"+tmp[0]+"/appHeart?t="+t+"&sign="+sign).method("GET",null).build();
-            Call call = okHttpClient.newCall(request);
-            call.enqueue(new Callback() {
-                @Override
-                public void onFailure(Call call, IOException e) {
-
-                }
-                @Override
-                public void onResponse(Call call, Response response) throws IOException {
-                    Log.d(TAG, "onResponse: "+response.body().string());
-                    isOk = true;
-
-                }
+public class MainActivity extends AppCompatActivity {
+    private ConfigStore configs;
+    private MonitorState monitor;
+    private TextView host, status, history;
+    private Call request;
+    private int requestGeneration;
+    private final ExecutorService images = Executors.newSingleThreadExecutor();
+    private boolean decoding;
+    private final SharedPreferences.OnSharedPreferenceChangeListener stateChanged = (prefs, key) -> refresh();
+    private final ActivityResultLauncher<ScanOptions> scanner = registerForActivityResult(new ScanContract(), result -> {
+        if (result.getContents() != null) confirmConfig(result.getContents());
+    });
+    private final ActivityResultLauncher<String> gallery = registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
+        if (uri != null) decodeImage(uri);
+    });
+    private final ActivityResultLauncher<String> notificationPermission = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(), granted -> {
+                if (granted) postTest(); else toast("发送测试通知需要通知权限；收款监听权限需单独开启");
             });
 
-            //将扫描出的信息显示出来
-            txthost.setText(" 通知地址："+tmp[0]);
-            txtkey.setText(" 通讯密钥："+tmp[1]);
-            host = tmp[0];
-            key = tmp[1];
-
-            SharedPreferences.Editor editor = getSharedPreferences("vone", MODE_PRIVATE).edit();
-            editor.putString("host", host);
-            editor.putString("key", key);
-            editor.commit();
-
-        }
+    @Override protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        new androidx.core.view.WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView())
+                .setAppearanceLightStatusBars((getResources().getConfiguration().uiMode
+                        & android.content.res.Configuration.UI_MODE_NIGHT_MASK) != android.content.res.Configuration.UI_MODE_NIGHT_YES);
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.root), (view, windowInsets) -> {
+            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.ime());
+            view.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+            return windowInsets;
+        });
+        configs = new ConfigStore(this);
+        monitor = new MonitorState(this);
+        host = findViewById(R.id.txt_host);
+        status = findViewById(R.id.txt_status);
+        history = findViewById(R.id.txt_history);
+        findViewById(R.id.btn_qrcode).setOnClickListener(v -> scanner.launch(new ScanOptions()
+                .setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("扫描 V免签后台配置二维码")
+                .setBeepEnabled(false).setOrientationLocked(false)));
+        findViewById(R.id.btn_gallery).setOnClickListener(v -> {
+            if (!decoding) {
+                try { gallery.launch("image/*"); }
+                catch (ActivityNotFoundException error) { toast("没有可用的图片选择器，请使用扫码或手动配置"); }
+            }
+        });
+        findViewById(R.id.btn_input).setOnClickListener(v -> manualInput());
+        findViewById(R.id.btn_start).setOnClickListener(v -> testHeartbeat());
+        findViewById(R.id.btn_checkpush).setOnClickListener(v -> testListener());
+        findViewById(R.id.btn_access).setOnClickListener(v -> openSettings(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+        findViewById(R.id.btn_battery).setOnClickListener(v -> openSettings(Build.VERSION.SDK_INT >= 23
+                ? Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS : Settings.ACTION_SETTINGS));
+        findViewById(R.id.btn_clear).setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("清除配置？").setMessage("清除后停止新的心跳和收款上报，已经发出的请求可能仍会完成。")
+                .setNegativeButton("取消", null).setPositiveButton("清除", (dialog, which) -> {
+                    cancelRequest(); configs.clear(); refresh();
+                }).show());
+        refresh();
     }
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        switch (requestCode) {
-            case Constant.REQ_PERM_CAMERA:
-                // 摄像头权限申请
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // 获得授权
-                    startQrCode(null);
-                } else {
-                    // 被禁止授权
-                    Toast.makeText(MainActivity.this, "请至权限中心打开本应用的相机访问权限", Toast.LENGTH_LONG).show();
-                }
-                break;
-            case Constant.REQ_PERM_EXTERNAL_STORAGE:
-                // 文件读写权限申请
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // 获得授权
-                    startQrCode(null);
-                } else {
-                    // 被禁止授权
-                    Toast.makeText(MainActivity.this, "请至权限中心打开本应用的文件读写权限", Toast.LENGTH_LONG).show();
-                }
-                break;
-        }
+    @Override protected void onStart() {
+        super.onStart();
+        getSharedPreferences("monitor", MODE_PRIVATE).registerOnSharedPreferenceChangeListener(stateChanged);
     }
-
-
-
+    @Override protected void onResume() { super.onResume(); if (configs != null) refresh(); }
+    @Override protected void onStop() {
+        getSharedPreferences("monitor", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(stateChanged);
+        super.onStop();
+    }
+    private void refresh() {
+        ServerConfig config = configs.load();
+        host.setText(config == null ? "尚未配置服务器" : config.baseUrl.toString()
+                + "\n通讯密钥：已保存 ········\n" + (config.baseUrl.isHttps() ? "HTTPS 加密连接" : "HTTP 明文连接，建议改用 HTTPS"));
+        status.setText(NotificationManagerCompat.getEnabledListenerPackages(this).contains(getPackageName())
+                ? "通知使用权已开启 · 可检测监听" : "通知使用权未开启");
+        history.setText(monitor.summary());
+    }
+    private void manualInput() {
+        EditText input = new EditText(this);
+        input.setHint("https://服务器/路径/通讯密钥");
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        new AlertDialog.Builder(this).setTitle("输入后台配置数据").setView(input)
+                .setNegativeButton("取消", null).setPositiveButton("下一步", (dialog, which) -> confirmConfig(input.getText().toString())).show();
+    }
+    private void confirmConfig(String value) {
+        try {
+            ServerConfig config = ServerConfig.parse(value);
+            new AlertDialog.Builder(this).setTitle("确认连接服务器")
+                    .setMessage(config.baseUrl.toString() + "\n\n" + (config.baseUrl.isHttps()
+                            ? "验证成功后保存配置。" : "此配置使用 HTTP 明文传输，建议在后台启用 HTTPS。是否继续验证？"))
+                    .setNegativeButton("取消", null).setPositiveButton("验证并保存", (dialog, which) -> check(config, true)).show();
+        } catch (IllegalArgumentException error) { toast(error.getMessage()); }
+    }
+    private void testHeartbeat() {
+        ServerConfig config = configs.load();
+        if (config == null) { toast("请先扫码或手动配置"); return; }
+        check(config, false);
+    }
+    private void cancelRequest() { requestGeneration++; if (request != null) request.cancel(); }
+    private void check(ServerConfig config, boolean save) {
+        cancelRequest();
+        int generation = requestGeneration;
+        toast("正在验证服务器…");
+        request = ApiClient.get(Protocol.heartbeat(config, System.currentTimeMillis()), (ok, message) -> runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed() || generation != requestGeneration) return;
+            if (ok && save) configs.save(config);
+            monitor.record("heart", message);
+            refresh(); toast(ok && save ? "验证成功，配置已保存" : message);
+        }));
+    }
+    private void testListener() {
+        if (!NotificationManagerCompat.getEnabledListenerPackages(this).contains(getPackageName())) {
+            openSettings(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS); return;
+        }
+        if (Build.VERSION.SDK_INT >= 24) NotificationListenerService.requestRebind(new ComponentName(this, NeNotificationService2.class));
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS);
+        else postTest();
+    }
+    private void postTest() {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) { toast("请先允许发送测试通知"); return; }
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(new NotificationChannel("listener_test", "监听检测", NotificationManager.IMPORTANCE_DEFAULT));
+        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) { toast("请在系统设置中允许本应用发送通知"); return; }
+        monitor.record("test", "测试通知已发出，等待监听回执");
+        manager.notify(1001, new NotificationCompat.Builder(this, "listener_test").setSmallIcon(R.drawable.ic_monitor)
+                .setContentTitle("V免签监听检测").setContentText(NeNotificationService2.TEST_TEXT).setAutoCancel(true).build());
+    }
+    private void openSettings(String action) {
+        try { startActivity(new Intent(action)); }
+        catch (ActivityNotFoundException error) { toast("请手动前往系统设置，开启通知使用权并允许后台运行"); }
+    }
+    private void decodeImage(Uri uri) {
+        decoding = true;
+        toast("正在识别图片…");
+        images.execute(() -> {
+            String value = null;
+            Bitmap bitmap = null;
+            try {
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                try (InputStream input = getContentResolver().openInputStream(uri)) { BitmapFactory.decodeStream(input, null, options); }
+                if (options.outWidth < 1 || options.outHeight < 1) throw new IllegalArgumentException();
+                options.inSampleSize = 1;
+                while (options.outWidth / options.inSampleSize > 1600 || options.outHeight / options.inSampleSize > 1600) options.inSampleSize *= 2;
+                options.inJustDecodeBounds = false;
+                try (InputStream input = getContentResolver().openInputStream(uri)) { bitmap = BitmapFactory.decodeStream(input, null, options); }
+                if (bitmap == null) throw new IllegalArgumentException();
+                int width = bitmap.getWidth(), height = bitmap.getHeight();
+                int[] pixels = new int[width * height];
+                bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+                value = new QRCodeReader().decode(new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(width, height, pixels)))).getText();
+            } catch (Exception error) { /* Expected for invalid images or a revoked document permission. */ }
+            finally { if (bitmap != null) bitmap.recycle(); }
+            String result = value;
+            runOnUiThread(() -> {
+                decoding = false;
+                if (isFinishing() || isDestroyed()) return;
+                if (result == null) toast("未识别到二维码，请选取清晰完整的配置二维码"); else confirmConfig(result);
+            });
+        });
+    }
+    private void toast(String message) { Toast.makeText(this, message, Toast.LENGTH_LONG).show(); }
+    @Override protected void onDestroy() { cancelRequest(); images.shutdownNow(); super.onDestroy(); }
 }
